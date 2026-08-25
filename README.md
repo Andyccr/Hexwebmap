@@ -1,49 +1,57 @@
 # Hexwebmap
 
-Static worldwide map for **GitHub Pages**, in the OpenStreetMap visual language. No application server.
+打开即用的全球地图网站，托管在 **GitHub Pages**。  
+**不需要安装 Node、不需要后端、不需要 `npm install`。**
 
-Live: [andyccr.github.io/Hexwebmap](https://andyccr.github.io/Hexwebmap/)
+在线地址：
 
-## Architecture
+- https://andyccr.github.io/Hexwebmap/
+- 或自定义域名：https://andyccr.com/Hexwebmap/
+
+## 架构（纯静态）
 
 ```
-GitHub Pages (static SPA)
-  └── MapLibre GL (WebGL)
-        ├── tiles / styles  →  OpenFreeMap, OSM rasters
-        ├── search          →  Photon + Nominatim (browser CORS)
-        ├── reverse         →  Nominatim, Photon fallback
-        └── directions      →  public OSRM
+浏览器打开 Pages URL
+  └── docs/ 静态文件
+        ├── index.html / css / js（本仓库）
+        ├── MapLibre GL ← jsDelivr CDN
+        ├── 矢量瓦片    ← OpenFreeMap
+        ├── 搜索        ← Photon + Nominatim
+        └── 路线        ← 公共 OSRM
 ```
 
-| Path | Role |
+仓库里就是最终页面。GitHub Pages 直接托管 `docs/`，没有构建步骤。
+
+| 路径 | 作用 |
 | --- | --- |
-| `apps/web` | Vite + React + MapLibre GL |
-| `packages/shared` | styles, hash URLs, geo / geocode helpers |
+| `docs/index.html` | 页面骨架 |
+| `docs/css/app.css` | OSM 风格界面 |
+| `docs/js/*.js` | 地图、搜索、路线（ES modules） |
 
-Hash URLs follow OSM: `#map=zoom/lat/lon&s=liberty`.
+## 本地预览（可选）
 
-## Develop
-
-Node 22+.
-
-```bash
-npm install
-npm run dev
-```
-
-http://127.0.0.1:5173
+因为用了 ES modules，用任意静态服务器打开即可，例如：
 
 ```bash
-npm test
-npm run build
+python3 -m http.server 8080 --directory docs
 ```
 
-Production build for project Pages uses `GITHUB_PAGES=true` so asset URLs are `/Hexwebmap/`. Enable **Settings → Pages → GitHub Actions** on the repository; pushes to `main` deploy `apps/web/dist`.
+然后访问 http://127.0.0.1:8080 — **仍然不需要 npm**。
 
-## Map data
+## 启用 Pages
 
-Default basemap is OpenFreeMap Liberty (OpenMapTiles + OSM). Optional rasters: OSM Carto, HOT, CyclOSM, OpenTopoMap, Esri imagery. Search uses [Photon](https://photon.komoot.io) and [Nominatim](https://nominatim.org); routing uses [OSRM](https://project-osrm.org). Follow each provider’s usage policy.
+仓库 **Settings → Pages**：
 
-## License
+1. Source: **Deploy from a branch**，Branch: `main`，Folder: `/docs`  
+   或
+2. Source: **GitHub Actions**（本仓库已带 `pages.yml`，推送 `main` 即发布 `docs/`）
 
-GNU Affero General Public License v3. Map data © OpenStreetMap contributors (ODbL).
+## 功能
+
+- 全球 OSM Liberty 矢量底图，可切换 Bright / 深色 / HOT / 地形 / 卫星等
+- 中英文搜索、点击逆地理、测距、定位、驾车/步行/骑行路线
+- 分享链接：`#map=zoom/lat/lon&s=liberty`
+
+## 许可
+
+GNU Affero General Public License v3。地图数据 © OpenStreetMap 贡献者（ODbL）。
