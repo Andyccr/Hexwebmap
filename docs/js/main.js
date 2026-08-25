@@ -444,7 +444,11 @@ $("btn-lang").addEventListener("click", () => {
 });
 
 $("btn-about").addEventListener("click", () => openPanel("about"));
-$("about-close").addEventListener("click", closePanels);
+$("about-close").addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  closePanels();
+});
 $("about-modal").addEventListener("click", (e) => {
   if (e.target === $("about-modal")) closePanels();
 });
