@@ -5,6 +5,11 @@ import { reverseGeocode } from "./api.js";
 
 const ROUTE = "hex-route";
 const MEASURE = "hex-measure";
+const ml = () => {
+  const g = globalThis.maplibregl;
+  if (!g) throw new Error("MapLibre GL failed to load");
+  return g;
+};
 
 function emptyLine() {
   return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } };
@@ -126,6 +131,7 @@ export function createMapController(el, state, bus) {
     return out;
   }
 
+  const maplibregl = ml();
   map = new maplibregl.Map({
     container: el,
     style: resolveStyle(state.styleId),
@@ -139,9 +145,14 @@ export function createMapController(el, state, bus) {
     fadeDuration: 120,
     canvasContextAttributes: { antialias: true, powerPreference: "high-performance" },
     localIdeographFontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif",
-    pixelRatio: Math.min(devicePixelRatio || 1, 2),
+    pixelRatio: Math.min(globalThis.devicePixelRatio || 1, 2),
   });
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 140 }), "bottom-left");
+
+  map.on("error", (e) => {
+    console.error("[hexwebmap]", e?.error || e);
+    bus.emit("map-error", e?.error || e);
+  });
 
   map.on("load", () => {
     ensureOverlays();
@@ -208,7 +219,7 @@ export function createMapController(el, state, bus) {
 
   function setMarker(lon, lat) {
     marker?.remove();
-    marker = new maplibregl.Marker({ color: "#5b8c5a" }).setLngLat([lon, lat]).addTo(map);
+    marker = new ml().Marker({ color: "#5b8c5a" }).setLngLat([lon, lat]).addTo(map);
   }
 
   function flyTo(target) {

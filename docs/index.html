@@ -9,16 +9,20 @@
       content="Hexwebmap — 打开即用的全球地图，托管在 GitHub Pages，OpenStreetMap 风格。"
     />
     <title>Hexwebmap</title>
+    <script>
+      // GitHub Pages project URLs without a trailing slash break relative assets.
+      (function () {
+        var p = location.pathname;
+        if (p.slice(-1) !== "/" && !/\.[a-z0-9]+$/i.test(p)) {
+          location.replace(p + "/" + location.search + location.hash);
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
     <link rel="preconnect" href="https://nominatim.openstreetmap.org" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css"
-      crossorigin="anonymous"
-    />
+    <link rel="stylesheet" href="./vendor/maplibre/maplibre-gl.css" />
     <link rel="stylesheet" href="./css/app.css" />
   </head>
   <body>
@@ -190,7 +194,7 @@
       </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.min.js" crossorigin="anonymous"></script>
+    <script src="./vendor/maplibre/maplibre-gl.min.js"></script>
     <script type="module" src="./js/main.js"></script>
   </body>
 </html>
