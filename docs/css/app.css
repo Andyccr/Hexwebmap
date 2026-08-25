@@ -638,6 +638,11 @@ a {
   padding: 20px;
 }
 
+/* Author display:grid beats the UA [hidden] rule; match .map-loading. */
+.modal-back[hidden] {
+  display: none !important;
+}
+
 .modal {
   width: min(540px, 100%);
   background: var(--paper);
