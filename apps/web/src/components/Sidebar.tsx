@@ -3,6 +3,7 @@ import {
   formatCoord,
   formatDistance,
   formatDuration,
+  nominatimOsmPath,
   type ReversePlace,
   type SearchHit,
 } from "@hexwebmap/shared";
@@ -36,10 +37,10 @@ function PlacePanel() {
   const subtitle = detail?.displayName || (isSearchHit(selected) ? selected.label : selected.displayName);
   const osmType = detail?.osmType ?? (isSearchHit(selected) ? selected.osmType : undefined);
   const osmId = detail?.osmId ?? (isSearchHit(selected) ? selected.osmId : undefined);
-  const osmUrl =
-    osmType && osmId
-      ? `https://www.openstreetmap.org/${osmType === "N" || osmType === "node" ? "node" : osmType === "W" || osmType === "way" ? "way" : "relation"}/${osmId}`
-      : `https://www.openstreetmap.org/?mlat=${selected.lat}&mlon=${selected.lon}#map=18/${selected.lat}/${selected.lon}`;
+  const osmPath = nominatimOsmPath(osmType, osmId);
+  const osmUrl = osmPath
+    ? `https://www.openstreetmap.org/${osmPath}`
+    : `https://www.openstreetmap.org/?mlat=${selected.lat}&mlon=${selected.lon}#map=18/${selected.lat}/${selected.lon}`;
 
   return (
     <aside className="sheet place-sheet">

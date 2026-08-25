@@ -1,16 +1,4 @@
-export type SearchHitDto = {
-  id: string;
-  name: string;
-  label: string;
-  lat: number;
-  lon: number;
-  osmKey?: string;
-  osmValue?: string;
-  osmType?: string;
-  osmId?: number;
-  country?: string;
-  bbox?: [number, number, number, number];
-};
+import type { SearchHit } from "./types.ts";
 
 const PHOTON_LANGS = new Set(["de", "en", "fr"]);
 
@@ -24,14 +12,14 @@ export function hasHan(q: string): boolean {
   return /\p{Script=Han}/u.test(q);
 }
 
-export function hitKey(h: SearchHitDto): string {
+export function hitKey(h: SearchHit): string {
   if (h.osmType && h.osmId != null) return `${h.osmType}:${h.osmId}`;
   return `${h.lat.toFixed(5)},${h.lon.toFixed(5)}`;
 }
 
-export function mergeHits(primary: SearchHitDto[], secondary: SearchHitDto[], limit: number): SearchHitDto[] {
+export function mergeHits(primary: SearchHit[], secondary: SearchHit[], limit: number): SearchHit[] {
   const seen = new Set<string>();
-  const out: SearchHitDto[] = [];
+  const out: SearchHit[] = [];
   for (const hit of [...primary, ...secondary]) {
     const k = hitKey(hit);
     if (seen.has(k)) continue;
@@ -47,7 +35,7 @@ type PhotonFeature = {
   properties?: Record<string, unknown>;
 };
 
-export function hitsFromPhoton(features: PhotonFeature[] | undefined, q: string): SearchHitDto[] {
+export function hitsFromPhoton(features: PhotonFeature[] | undefined, q: string): SearchHit[] {
   return (features ?? []).flatMap((f, i) => {
     const coords = f.geometry?.coordinates;
     const p = f.properties ?? {};
@@ -101,7 +89,7 @@ const OSM_TYPE_SHORT: Record<string, string> = {
   relation: "R",
 };
 
-export function hitsFromNominatim(rows: NominatimSearch[] | undefined): SearchHitDto[] {
+export function hitsFromNominatim(rows: NominatimSearch[] | undefined): SearchHit[] {
   return (rows ?? []).flatMap((row, i) => {
     const lat = Number(row.lat);
     const lon = Number(row.lon);
@@ -116,7 +104,7 @@ export function hitsFromNominatim(rows: NominatimSearch[] | undefined): SearchHi
             number,
           ])
         : undefined;
-    const osmType = row.osm_type ? OSM_TYPE_SHORT[row.osm_type] ?? row.osm_type : undefined;
+    const osmType = row.osm_type ? (OSM_TYPE_SHORT[row.osm_type] ?? row.osm_type) : undefined;
     const name = row.name || row.display_name?.split(",")[0] || "";
     return [
       {
@@ -134,4 +122,15 @@ export function hitsFromNominatim(rows: NominatimSearch[] | undefined): SearchHi
       },
     ];
   });
+}
+
+export function nominatimOsmPath(osmType?: string, osmId?: number): string | null {
+  if (!osmType || osmId == null) return null;
+  const t =
+    osmType === "N" || osmType === "node"
+      ? "node"
+      : osmType === "W" || osmType === "way"
+        ? "way"
+        : "relation";
+  return `${t}/${osmId}`;
 }

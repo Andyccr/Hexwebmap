@@ -3,20 +3,18 @@
   "private": true,
   "version": "1.0.0",
   "license": "AGPL-3.0-or-later",
-  "description": "High-performance worldwide map website in the OpenStreetMap style",
+  "description": "Static OpenStreetMap-style worldwide map for GitHub Pages",
+  "homepage": "https://andyccr.github.io/Hexwebmap/",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c cyan,green \"npm run dev -w @hexwebmap/api\" \"npm run dev -w @hexwebmap/web\"",
-    "build": "npm run build -w @hexwebmap/web && npm run build -w @hexwebmap/api",
-    "start": "npm run start -w @hexwebmap/api",
-    "test": "npm run test -w @hexwebmap/shared && npm run test -w @hexwebmap/api",
-    "typecheck": "npm run typecheck -w @hexwebmap/shared && npm run typecheck -w @hexwebmap/api && npm run typecheck -w @hexwebmap/web"
-  },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
+    "dev": "npm run dev -w @hexwebmap/web",
+    "build": "npm run build -w @hexwebmap/web",
+    "preview": "npm run preview -w @hexwebmap/web",
+    "test": "npm run test -w @hexwebmap/shared",
+    "typecheck": "npm run typecheck -w @hexwebmap/shared && npm run typecheck -w @hexwebmap/web"
   },
   "engines": {
     "node": ">=22"

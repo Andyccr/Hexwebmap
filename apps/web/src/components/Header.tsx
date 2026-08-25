@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { parseCoordinateQuery, type SearchHit } from "@hexwebmap/shared";
 import { searchPlaces } from "../api";
 import { t } from "../i18n";
@@ -60,7 +60,7 @@ export function Header() {
           if ((err as { name?: string }).name === "AbortError") return;
           setResults([], false);
         });
-    }, 220);
+    }, 280);
     return () => window.clearTimeout(handle);
   }, [query, lang, coordHit, setResults, setSearching]);
 
@@ -72,6 +72,12 @@ export function Header() {
     setQuery(hit.name);
   }
 
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    const hit = shown[active] ?? shown[0];
+    if (hit) choose(hit);
+  }
+
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -79,9 +85,6 @@ export function Header() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      const hit = shown[active];
-      if (hit) choose(hit);
     } else if (e.key === "Escape") {
       setOpen(false);
       inputRef.current?.blur();
@@ -92,16 +95,16 @@ export function Header() {
 
   return (
     <header className="topbar">
-      <a className="brand" href="/" aria-label={msg.brand}>
+      <a className="brand" href="./" aria-label={msg.brand}>
         <span className="brand-mark">
-          <IconHex />
+          <IconHex size={32} />
         </span>
         <span className="brand-text">
           <strong>{msg.brand}</strong>
           <em>{msg.tagline}</em>
         </span>
       </a>
-      <div className={`search ${open ? "open" : ""}`}>
+      <form className={`search ${open ? "open" : ""}`} onSubmit={onSubmit} role="search">
         <span className="search-icon">
           <IconSearch />
         </span>
@@ -134,6 +137,9 @@ export function Header() {
             <IconClose />
           </button>
         )}
+        <button className="search-go" type="submit">
+          {msg.searchGo}
+        </button>
         {open && (
           <div className="search-menu" role="listbox">
             {searching && <div className="search-note">{msg.searching}</div>}
@@ -173,15 +179,23 @@ export function Header() {
             {!query && recent.length === 0 && <div className="search-note">{msg.searchHint}</div>}
           </div>
         )}
-      </div>
-      <div className="top-actions">
+      </form>
+      <nav className="top-actions">
         <button type="button" className="text-btn" onClick={() => setLang(lang === "zh" ? "en" : "zh")}>
           {msg.lang}
         </button>
         <button type="button" className="text-btn" onClick={() => setPanel("about")}>
           {msg.about}
         </button>
-      </div>
+        <a
+          className="text-btn"
+          href="https://github.com/Andyccr/Hexwebmap"
+          target="_blank"
+          rel="noreferrer"
+        >
+          GitHub
+        </a>
+      </nav>
     </header>
   );
 }
