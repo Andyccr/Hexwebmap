@@ -11,6 +11,8 @@ export function App() {
   const embed = useMapStore((s) => s.embed);
   const setPanel = useMapStore((s) => s.setPanel);
   const lang = useMapStore((s) => s.lang);
+  const styleId = useMapStore((s) => s.styleId);
+  const dark = styleId === "dark" || styleId === "fiord";
 
   useEffect(() => {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
@@ -39,7 +41,7 @@ export function App() {
   }, [setPanel]);
 
   return (
-    <div className={`app ${embed ? "embed" : ""}`}>
+    <div className={`app ${embed ? "embed" : ""} ${dark ? "dark-chrome" : ""}`}>
       <Header />
       <main className="stage">
         <Suspense fallback={<div className="map-stage" />}>

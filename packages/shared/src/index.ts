@@ -35,3 +35,13 @@ export {
 } from "./geo.ts";
 
 export { parseMapHash, serializeMapHash, defaultView } from "./hash.ts";
+
+export {
+  photonLang,
+  hasHan,
+  hitKey,
+  mergeHits,
+  hitsFromPhoton,
+  hitsFromNominatim,
+  nominatimOsmPath,
+} from "./geocode.ts";

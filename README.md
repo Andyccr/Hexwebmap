@@ -1,25 +1,24 @@
 # Hexwebmap
 
-Worldwide map site in the OpenStreetMap visual language: GPU vector tiles, a small caching API, and a cartographic UI.
+Static worldwide map for **GitHub Pages**, in the OpenStreetMap visual language. No application server.
+
+Live: [andyccr.github.io/Hexwebmap](https://andyccr.github.io/Hexwebmap/)
 
 ## Architecture
 
 ```
-Browser ── MapLibre GL (WebGL) ──► OpenFreeMap / OSM raster CDNs
-   │
-   └── /api/* ── Hono BFF
-                    ├── Photon     search (LRU + TTL)
-                    ├── Nominatim  reverse geocode
-                    └── OSRM       driving / walking / cycling
+GitHub Pages (static SPA)
+  └── MapLibre GL (WebGL)
+        ├── tiles / styles  →  OpenFreeMap, OSM rasters
+        ├── search          →  Photon + Nominatim (browser CORS)
+        ├── reverse         →  Nominatim, Photon fallback
+        └── directions      →  public OSRM
 ```
 
-Tiles never transit the app server. The BFF only fronts rate-limited geocoding and routing, with validation, timeouts, and an in-memory cache.
-
-| Layer | Role |
+| Path | Role |
 | --- | --- |
 | `apps/web` | Vite + React + MapLibre GL |
-| `apps/api` | Hono gateway, static SPA in production |
-| `packages/shared` | styles catalog, hash URLs, geo helpers |
+| `packages/shared` | styles, hash URLs, geo / geocode helpers |
 
 Hash URLs follow OSM: `#map=zoom/lat/lon&s=liberty`.
 
@@ -32,26 +31,18 @@ npm install
 npm run dev
 ```
 
-- UI: http://127.0.0.1:5173
-- API: http://127.0.0.1:8787/api/health
+http://127.0.0.1:5173
 
 ```bash
 npm test
 npm run build
-PORT=8080 npm start
 ```
 
-Production serves `apps/web/dist` from the API process (port `8080` in Docker).
-
-```bash
-docker compose up --build
-```
+Production build for project Pages uses `GITHUB_PAGES=true` so asset URLs are `/Hexwebmap/`. Enable **Settings → Pages → GitHub Actions** on the repository; pushes to `main` deploy `apps/web/dist`.
 
 ## Map data
 
-Default basemap is **OpenFreeMap Liberty** (OpenMapTiles + OSM). Optional rasters include OSM Carto, HOT, CyclOSM, OpenTopoMap, and Esri World Imagery. Attribution stays on the map. OSM raster tiles are for light use; prefer the vector styles in production.
-
-Search: [Photon](https://photon.komoot.io). Reverse: [Nominatim](https://nominatim.org). Routing: [OSRM](https://project-osrm.org). Override upstream URLs with the variables in `.env.example`.
+Default basemap is OpenFreeMap Liberty (OpenMapTiles + OSM). Optional rasters: OSM Carto, HOT, CyclOSM, OpenTopoMap, Esri imagery. Search uses [Photon](https://photon.komoot.io) and [Nominatim](https://nominatim.org); routing uses [OSRM](https://project-osrm.org). Follow each provider’s usage policy.
 
 ## License
 

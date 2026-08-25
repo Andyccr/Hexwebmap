@@ -38,6 +38,7 @@ export function AboutModal() {
             ×
           </button>
         </header>
+        <p className="host-pill">{msg.host}</p>
         <p>{msg.aboutBody}</p>
         <p>{msg.aboutData}</p>
         <p>{msg.aboutPerf}</p>
@@ -45,7 +46,7 @@ export function AboutModal() {
           <a href="https://github.com/Andyccr/Hexwebmap" target="_blank" rel="noreferrer">
             {msg.source}
           </a>
-          <a href="/LICENSE" target="_blank" rel="noreferrer">
+          <a href={`${import.meta.env.BASE_URL}LICENSE`} target="_blank" rel="noreferrer">
             {msg.license} (AGPL-3.0)
           </a>
         </p>

@@ -1,26 +1,47 @@
-import { readFile } from "node:fs/promises";
+import { copyFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 const root = dirname(fileURLToPath(import.meta.url));
+const pages = process.env.GITHUB_PAGES === "true";
 
-function licensePlugin(): Plugin {
+function staticAssetsPlugin(): Plugin {
+  const licenseSrc = resolve(root, "../../LICENSE");
+  const licenseDest = resolve(root, "public/LICENSE");
   return {
-    name: "hex-license",
+    name: "hex-static-assets",
+    buildStart() {
+      copyFileSync(licenseSrc, licenseDest);
+    },
+    closeBundle() {
+      const dist = resolve(root, "dist/index.html");
+      const notFound = resolve(root, "dist/404.html");
+      try {
+        copyFileSync(dist, notFound);
+      } catch {
+        /* dist may not exist during typecheck */
+      }
+    },
     configureServer(server) {
-      server.middlewares.use("/LICENSE", async (_req, res) => {
-        const text = await readFile(resolve(root, "../../LICENSE"));
+      server.middlewares.use("/LICENSE", (_req, res, next) => {
+        try {
+          copyFileSync(licenseSrc, licenseDest);
+        } catch {
+          next();
+          return;
+        }
         res.setHeader("content-type", "text/plain; charset=utf-8");
-        res.end(text);
+        res.end(readFileSync(licenseSrc));
       });
     },
   };
 }
 
 export default defineConfig({
-  plugins: [react(), licensePlugin()],
+  base: pages ? "/Hexwebmap/" : "/",
+  plugins: [react(), staticAssetsPlugin()],
   resolve: {
     alias: {
       "@hexwebmap/shared": resolve(root, "../../packages/shared/src/index.ts"),
@@ -29,9 +50,6 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    proxy: {
-      "/api": "http://127.0.0.1:8787",
-    },
   },
   preview: {
     port: 5173,
