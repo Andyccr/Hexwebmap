@@ -50,7 +50,6 @@ export interface MapStore {
   view: { zoom: number; lat: number; lon: number; bearing: number; pitch: number };
   embed: boolean;
   loaded: boolean;
-  fps: number;
   query: string;
   results: SearchHit[];
   searching: boolean;
@@ -78,7 +77,6 @@ export interface MapStore {
   setStyle: (id: string) => void;
   setView: (view: MapStore["view"]) => void;
   setLoaded: (v: boolean) => void;
-  setFps: (n: number) => void;
   setQuery: (q: string) => void;
   setResults: (hits: SearchHit[], searching?: boolean) => void;
   setSearching: (v: boolean) => void;
@@ -117,7 +115,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
   view: initialView(),
   embed: new URLSearchParams(window.location.search).has("embed"),
   loaded: false,
-  fps: 0,
   query: "",
   results: [],
   searching: false,
@@ -147,7 +144,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
   },
   setView: (view) => set({ view }),
   setLoaded: (loaded) => set({ loaded }),
-  setFps: (fps) => set({ fps }),
   setQuery: (query) => set({ query }),
   setResults: (results, searching) =>
     set({ results, searching: searching ?? false }),

@@ -143,11 +143,11 @@ export function Header() {
             {!query && recent.length > 0 && (
               <>
                 <div className="search-label">{msg.recent}</div>
-                {recent.map((hit) => (
+                {recent.map((hit, i) => (
                   <button
                     type="button"
                     className="search-item"
-                    key={hit.id}
+                    key={`recent-${hit.id}-${i}`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => choose(hit)}
                   >
@@ -161,7 +161,7 @@ export function Header() {
               <button
                 type="button"
                 className={`search-item ${i === active ? "active" : ""}`}
-                key={hit.id}
+                key={`hit-${hit.id}-${i}`}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choose(hit)}
                 onMouseEnter={() => setActive(i)}

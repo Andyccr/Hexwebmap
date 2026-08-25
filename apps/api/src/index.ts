@@ -8,6 +8,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { LruTtlCache, TokenBucket } from "./cache.ts";
 import { fetchJson } from "./http.ts";
+import { hasHan, hitsFromNominatim, hitsFromPhoton, mergeHits, photonLang } from "./geocode.ts";
 import {
   HttpError,
   parseLatLon,
@@ -39,13 +40,6 @@ const MIME: Record<string, string> = {
   ".woff2": "font/woff2",
   ".txt": "text/plain; charset=utf-8",
   ".webmanifest": "application/manifest+json",
-};
-
-type PhotonResponse = {
-  features?: Array<{
-    geometry?: { coordinates?: number[] };
-    properties?: Record<string, unknown>;
-  }>;
 };
 
 type NominatimReverse = {
@@ -123,41 +117,34 @@ app.get("/api/geocode/search", async (c) => {
     c.header("x-cache", "HIT");
     return c.json(cached);
   }
-  const url = new URL("/api", PHOTON);
-  url.searchParams.set("q", q);
-  url.searchParams.set("limit", String(limit));
-  url.searchParams.set("lang", lang);
-  const data = await fetchJson<PhotonResponse>(url.toString());
-  const hits = (data.features ?? []).flatMap((f, i) => {
-    const coords = f.geometry?.coordinates;
-    const p = f.properties ?? {};
-    if (!coords || coords.length < 2) return [];
-    const lon = coords[0];
-    const lat = coords[1];
-    if (lon === undefined || lat === undefined) return [];
-    const extent = Array.isArray(p.extent) ? (p.extent as number[]) : undefined;
-    const bbox =
-      extent && extent.length >= 4
-        ? ([extent[0], extent[3], extent[2], extent[1]] as [number, number, number, number])
-        : undefined;
-    const parts = [p.street, p.city, p.state, p.country].filter(Boolean);
-    const name = String(p.name ?? p.city ?? p.street ?? q);
-    return [
-      {
-        id: String(p.osm_id ?? `${lon},${lat},${i}`),
-        name,
-        label: parts.length ? `${name} · ${parts.join(", ")}` : String(p.name ?? name),
-        lat,
-        lon,
-        osmKey: p.osm_key ? String(p.osm_key) : undefined,
-        osmValue: p.osm_value ? String(p.osm_value) : undefined,
-        osmType: p.osm_type ? String(p.osm_type) : undefined,
-        osmId: typeof p.osm_id === "number" ? p.osm_id : undefined,
-        country: p.country ? String(p.country) : undefined,
-        bbox,
-      },
-    ];
-  });
+
+  const photonUrl = new URL("/api", PHOTON);
+  photonUrl.searchParams.set("q", q);
+  photonUrl.searchParams.set("limit", String(limit));
+  const pLang = photonLang(lang);
+  if (pLang) photonUrl.searchParams.set("lang", pLang);
+
+  const cjk = hasHan(q);
+  const nomiUrl = new URL("/search", NOMINATIM);
+  nomiUrl.searchParams.set("q", q);
+  nomiUrl.searchParams.set("format", "jsonv2");
+  nomiUrl.searchParams.set("addressdetails", "1");
+  nomiUrl.searchParams.set("limit", String(limit));
+  nomiUrl.searchParams.set("accept-language", lang === "en" ? "en" : "zh");
+
+  const photonTask = fetchJson<{ features?: Array<{ geometry?: { coordinates?: number[] }; properties?: Record<string, unknown> }> }>(
+    photonUrl.toString(),
+  ).catch(() => ({ features: [] }));
+  const nomiTask = cjk
+    ? fetchJson<Array<{ name?: string; display_name?: string; lat?: string; lon?: string; osm_type?: string; osm_id?: number; category?: string; type?: string; address?: Record<string, string>; boundingbox?: string[] }>>(
+        nomiUrl.toString(),
+      ).catch(() => [])
+    : Promise.resolve([]);
+
+  const [photon, nomi] = await Promise.all([photonTask, nomiTask]);
+  const photonHits = hitsFromPhoton(photon.features, q);
+  const nomiHits = hitsFromNominatim(nomi);
+  const hits = cjk ? mergeHits(nomiHits, photonHits, limit) : mergeHits(photonHits, nomiHits, limit);
   const body = { query: q, hits };
   searchCache.set(key, body);
   c.header("x-cache", "MISS");

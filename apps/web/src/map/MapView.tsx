@@ -83,19 +83,6 @@ export function MapView() {
     });
     map.on("moveend", syncView);
 
-    let frames = 0;
-    let last = performance.now();
-    const onRender = () => {
-      frames += 1;
-      const now = performance.now();
-      if (now - last >= 500) {
-        useMapStore.getState().setFps(Math.round((frames * 1000) / (now - last)));
-        frames = 0;
-        last = now;
-      }
-    };
-    map.on("render", onRender);
-
     const onHash = () => {
       const parsed = parseMapHash(window.location.hash);
       if (!parsed) return;
@@ -127,7 +114,6 @@ export function MapView() {
       window.removeEventListener("hex-zoom", onZoom);
       window.removeEventListener("hex-north", onNorth);
       window.removeEventListener("hex-tilt", onTilt);
-      map.off("render", onRender);
       markerRef.current?.remove();
       map.remove();
       mapRef.current = null;

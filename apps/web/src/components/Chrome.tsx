@@ -6,7 +6,6 @@ export function StatusBar() {
   const lang = useMapStore((s) => s.lang);
   const view = useMapStore((s) => s.view);
   const styleId = useMapStore((s) => s.styleId);
-  const fps = useMapStore((s) => s.fps);
   const loaded = useMapStore((s) => s.loaded);
   const msg = t(lang);
   const style = getStyle(styleId);
@@ -19,9 +18,7 @@ export function StatusBar() {
       <span className="dot" />
       <span>{style.name[lang]}</span>
       <span className="grow" />
-      <span className="fps">
-        {loaded ? msg.loaded : msg.loading} · {fps || "—"} {msg.fps}
-      </span>
+      {!loaded && <span>{msg.loading}</span>}
     </footer>
   );
 }
