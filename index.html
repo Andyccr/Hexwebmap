@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      name="description"
+      content="Hexwebmap — 打开即用的全球地图，托管在 GitHub Pages，OpenStreetMap 风格。"
+    />
+    <title>Hexwebmap</title>
+    <script>
+      // GitHub Pages project URLs without a trailing slash break relative assets.
+      (function () {
+        var p = location.pathname;
+        if (p.slice(-1) !== "/" && !/\.[a-z0-9]+$/i.test(p)) {
+          location.replace(p + "/" + location.search + location.hash);
+        }
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
+    <link rel="preconnect" href="https://nominatim.openstreetmap.org" crossorigin />
+    <link rel="stylesheet" href="./vendor/maplibre/maplibre-gl.css" />
+    <link rel="stylesheet" href="./css/app.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="topbar" id="topbar">
+        <a class="brand" href="./" aria-label="Hexwebmap">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 32 32">
+              <polygon points="16,2.2 28.2,9.1 28.2,22.9 16,29.8 3.8,22.9 3.8,9.1" fill="currentColor" />
+              <path
+                d="M4.6 16h22.8M16 2.8v26.4M8.2 8.6c3.8 5.4 7.8 5.4 15.6 0M8.2 23.4c3.8-5.4 7.8-5.4 15.6 0"
+                fill="none"
+                stroke="#fff"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <span class="brand-text">
+            <strong>Hexwebmap</strong>
+            <em data-i18n="tagline">开放地图</em>
+          </span>
+        </a>
+
+        <form class="search" id="search-form" role="search" autocomplete="off">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input
+            id="search-input"
+            type="search"
+            name="q"
+            enterkeyhint="search"
+            data-i18n-placeholder="searchPlaceholder"
+            placeholder="搜索地点或坐标"
+            aria-autocomplete="list"
+            aria-controls="search-menu"
+          />
+          <button type="button" class="icon-quiet" id="search-clear" hidden aria-label="清除">×</button>
+          <button class="search-go" type="submit" data-i18n="searchGo">搜索</button>
+          <div class="search-menu" id="search-menu" role="listbox" hidden></div>
+        </form>
+
+        <nav class="top-actions">
+          <button type="button" class="text-btn" id="btn-lang" data-i18n="lang">English</button>
+          <button type="button" class="text-btn" id="btn-about" data-i18n="about">关于</button>
+          <a class="text-btn" href="https://github.com/Andyccr/Hexwebmap" target="_blank" rel="noreferrer"
+            >GitHub</a
+          >
+        </nav>
+      </header>
+
+      <main class="stage">
+        <div id="map" class="map-root" role="application" aria-label="map"></div>
+        <div class="map-loading" id="map-loading">
+          <div class="map-loading-mark"></div>
+          <p data-i18n="loading">正在载入地图…</p>
+        </div>
+        <div class="measure-banner" id="measure-banner" hidden></div>
+
+        <div class="ctrl-stack left">
+          <div class="ctrl-group">
+            <button type="button" id="btn-zoom-in" title="Zoom in">+</button>
+            <button type="button" id="btn-zoom-out" title="Zoom out">−</button>
+          </div>
+          <div class="ctrl-group">
+            <button type="button" id="btn-north" title="North" class="compass">◎</button>
+            <button type="button" id="btn-tilt" title="3D">3D</button>
+          </div>
+          <div class="ctrl-group">
+            <button type="button" id="btn-locate" title="Locate">◉</button>
+            <button type="button" id="btn-measure" title="Measure">╱</button>
+          </div>
+        </div>
+
+        <div class="ctrl-stack right">
+          <div class="ctrl-group">
+            <button type="button" id="btn-layers" title="Layers">▦</button>
+            <button type="button" id="btn-route" title="Directions">↗</button>
+            <button type="button" id="btn-share" title="Share">⎘</button>
+          </div>
+        </div>
+
+        <aside class="sheet" id="panel-layers" hidden>
+          <header>
+            <h2 data-i18n="layers">图层</h2>
+            <button type="button" class="icon-quiet panel-close" data-close>×</button>
+          </header>
+          <div id="layers-body"></div>
+        </aside>
+
+        <aside class="sheet" id="panel-place" hidden>
+          <header>
+            <h2 id="place-title"></h2>
+            <button type="button" class="icon-quiet panel-close" data-close>×</button>
+          </header>
+          <p class="lede" id="place-sub"></p>
+          <dl class="meta" id="place-meta"></dl>
+          <section id="place-address" hidden>
+            <h3 data-i18n="address">地址</h3>
+            <ul class="kv" id="place-address-list"></ul>
+          </section>
+          <section id="place-inspect" hidden>
+            <h3 data-i18n="inspect">地图要素</h3>
+            <div id="place-inspect-body"></div>
+          </section>
+          <div class="sheet-actions">
+            <a class="btn" id="place-osm" target="_blank" rel="noreferrer" data-i18n="openOsm">在 OSM 打开</a>
+            <button type="button" class="btn ghost" id="place-directions" data-i18n="directions">路线</button>
+          </div>
+        </aside>
+
+        <aside class="sheet" id="panel-route" hidden>
+          <header>
+            <h2 data-i18n="directions">路线</h2>
+            <button type="button" class="icon-quiet panel-close" data-close>×</button>
+          </header>
+          <div class="route-fields">
+            <label>
+              <span data-i18n="from">起点</span>
+              <button type="button" class="pick" id="route-from" data-i18n="pickFrom">在地图上选择起点</button>
+            </label>
+            <button type="button" class="swap" id="route-swap" aria-label="swap">⇅</button>
+            <label>
+              <span data-i18n="to">终点</span>
+              <button type="button" class="pick" id="route-to" data-i18n="pickTo">在地图上选择终点</button>
+            </label>
+          </div>
+          <div class="segmented" id="route-profile">
+            <button type="button" data-profile="driving" class="on" data-i18n="driving">驾车</button>
+            <button type="button" data-profile="walking" data-i18n="walking">步行</button>
+            <button type="button" data-profile="cycling" data-i18n="cycling">骑行</button>
+          </div>
+          <p class="search-note" id="route-note" data-i18n="routeEmpty">选择起终点后计算路线</p>
+          <div class="route-result" id="route-result" hidden>
+            <strong id="route-distance"></strong>
+            <span id="route-duration"></span>
+          </div>
+        </aside>
+
+        <footer class="statusbar">
+          <span id="status-coords"></span>
+          <span class="dot"></span>
+          <span id="status-zoom"></span>
+          <span class="dot"></span>
+          <span id="status-style"></span>
+          <span class="grow"></span>
+          <span id="status-host" data-i18n="hostShort">GitHub Pages</span>
+        </footer>
+
+        <div class="toast" id="toast" hidden></div>
+
+        <div class="modal-back" id="about-modal" hidden>
+          <article class="modal" role="dialog" aria-labelledby="about-title">
+            <header>
+              <h2 id="about-title" data-i18n="about">关于</h2>
+              <button type="button" class="icon-quiet" id="about-close">×</button>
+            </header>
+            <p class="host-pill" data-i18n="host">GitHub Pages · 无需安装</p>
+            <p data-i18n="aboutBody"></p>
+            <p data-i18n="aboutData"></p>
+            <p data-i18n="aboutPerf"></p>
+            <p class="modal-links">
+              <a href="https://github.com/Andyccr/Hexwebmap" target="_blank" rel="noreferrer" data-i18n="source"
+                >源代码</a
+              >
+              <a href="./LICENSE" target="_blank" rel="noreferrer">AGPL-3.0</a>
+            </p>
+          </article>
+        </div>
+      </main>
+    </div>
+
+    <script src="./vendor/maplibre/maplibre-gl.min.js"></script>
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>

@@ -18,8 +18,26 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Assemble static site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site
+          # Prefer repo-root map files; fall back to docs/ if present.
+          for f in index.html favicon.svg .nojekyll; do
+            if [ -f "$f" ]; then cp -a "$f" _site/; elif [ -f "docs/$f" ]; then cp -a "docs/$f" _site/; fi
+          done
+          for d in css js vendor; do
+            if [ -d "$d" ]; then cp -a "$d" _site/; elif [ -d "docs/$d" ]; then cp -a "docs/$d" _site/; fi
+          done
+          cp -a LICENSE _site/LICENSE
+          test -f _site/index.html
+          test -f _site/vendor/maplibre/maplibre-gl.min.js
+          test -f _site/js/main.js
+          test -f _site/.nojekyll
+          ls -la _site
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
