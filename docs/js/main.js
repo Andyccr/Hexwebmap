@@ -80,7 +80,6 @@ const state = {
 const bus = createBus();
 const $ = (id) => document.getElementById(id);
 const app = $("app");
-const mapCtrl = createMapController($("map"), state, bus);
 
 function msg() {
   return t(state.lang);
@@ -95,6 +94,30 @@ function toast(text) {
     el.hidden = true;
   }, 2400);
 }
+
+let mapCtrl;
+let fellBack = false;
+try {
+  if (!globalThis.maplibregl) {
+    throw new Error("MapLibre GL script missing");
+  }
+  mapCtrl = createMapController($("map"), state, bus);
+} catch (err) {
+  console.error(err);
+  const loading = $("map-loading");
+  if (loading) {
+    loading.hidden = false;
+    loading.innerHTML = `<p>地图引擎加载失败：${String(err.message || err)}</p>`;
+  }
+}
+
+bus.on("map-error", (err) => {
+  if (fellBack || !mapCtrl || state.styleId === "osm") return;
+  fellBack = true;
+  console.warn("[hexwebmap] falling back to OSM raster", err);
+  mapCtrl.setStyle("osm");
+  toast(state.lang === "zh" ? "矢量底图暂不可用，已切换 OSM 栅格" : "Vector style unavailable; switched to OSM raster");
+});
 
 function closePanels() {
   state.panel = "none";
@@ -429,10 +452,10 @@ document.querySelectorAll(".panel-close").forEach((btn) =>
   btn.addEventListener("click", closePanels),
 );
 
-$("btn-zoom-in").addEventListener("click", () => mapCtrl.zoomBy(1));
-$("btn-zoom-out").addEventListener("click", () => mapCtrl.zoomBy(-1));
-$("btn-north").addEventListener("click", () => mapCtrl.north());
-$("btn-tilt").addEventListener("click", () => mapCtrl.tilt());
+$("btn-zoom-in").addEventListener("click", () => mapCtrl?.zoomBy(1));
+$("btn-zoom-out").addEventListener("click", () => mapCtrl?.zoomBy(-1));
+$("btn-north").addEventListener("click", () => mapCtrl?.north());
+$("btn-tilt").addEventListener("click", () => mapCtrl?.tilt());
 $("btn-layers").addEventListener("click", () =>
   state.panel === "layers" ? closePanels() : openPanel("layers"),
 );
@@ -563,7 +586,7 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     input.focus();
   }
-  if (e.key === "=" || e.key === "+") mapCtrl.zoomBy(1);
-  if (e.key === "-" || e.key === "_") mapCtrl.zoomBy(-1);
-  if (e.key === "0") mapCtrl.north();
+  if (e.key === "=" || e.key === "+") mapCtrl?.zoomBy(1);
+  if (e.key === "-" || e.key === "_") mapCtrl?.zoomBy(-1);
+  if (e.key === "0") mapCtrl?.north();
 });
