@@ -20,10 +20,20 @@
     </script>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" />
     <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
     <link rel="preconnect" href="https://nominatim.openstreetmap.org" crossorigin />
-    <link rel="stylesheet" href="./vendor/maplibre/maplibre-gl.css?v=6" />
-    <link rel="stylesheet" href="./css/app.css?v=6" />
+    <link rel="dns-prefetch" href="https://router.project-osrm.org" />
+    <link rel="preload" href="./vendor/maplibre/maplibre-gl.min.js?v=7" as="script" />
+    <link rel="modulepreload" href="./js/main.js?v=7" />
+    <link rel="modulepreload" href="./js/map.js?v=7" />
+    <link rel="modulepreload" href="./js/api.js?v=7" />
+    <link rel="modulepreload" href="./js/styles.js?v=7" />
+    <link rel="modulepreload" href="./js/geo.js?v=7" />
+    <link rel="modulepreload" href="./js/hash.js?v=7" />
+    <link rel="modulepreload" href="./js/i18n.js?v=7" />
+    <link rel="stylesheet" href="./vendor/maplibre/maplibre-gl.css?v=7" />
+    <link rel="stylesheet" href="./css/app.css?v=7" />
   </head>
   <body>
     <div id="app" class="app">
@@ -83,24 +93,24 @@
 
         <div class="ctrl-stack left">
           <div class="ctrl-group">
-            <button type="button" id="btn-zoom-in" title="Zoom in">+</button>
-            <button type="button" id="btn-zoom-out" title="Zoom out">−</button>
+            <button type="button" id="btn-zoom-in" data-i18n-title="zoomIn" title="Zoom in">+</button>
+            <button type="button" id="btn-zoom-out" data-i18n-title="zoomOut" title="Zoom out">−</button>
           </div>
           <div class="ctrl-group">
-            <button type="button" id="btn-north" title="North" class="compass">◎</button>
-            <button type="button" id="btn-tilt" title="3D">3D</button>
+            <button type="button" id="btn-north" data-i18n-title="north" title="North" class="compass">◎</button>
+            <button type="button" id="btn-tilt" data-i18n-title="tilt" title="3D">3D</button>
           </div>
           <div class="ctrl-group">
-            <button type="button" id="btn-locate" title="Locate">◉</button>
-            <button type="button" id="btn-measure" title="Measure">╱</button>
+            <button type="button" id="btn-locate" data-i18n-title="locate" title="Locate">◉</button>
+            <button type="button" id="btn-measure" data-i18n-title="measure" title="Measure">╱</button>
           </div>
         </div>
 
         <div class="ctrl-stack right">
           <div class="ctrl-group">
-            <button type="button" id="btn-layers" title="Layers">▦</button>
-            <button type="button" id="btn-route" title="Directions">↗</button>
-            <button type="button" id="btn-share" title="Share">⎘</button>
+            <button type="button" id="btn-layers" data-i18n-title="layers" title="Layers">▦</button>
+            <button type="button" id="btn-route" data-i18n-title="directions" title="Directions">↗</button>
+            <button type="button" id="btn-share" data-i18n-title="share" title="Share">⎘</button>
           </div>
         </div>
 
@@ -194,7 +204,7 @@
       </main>
     </div>
 
-    <script src="./vendor/maplibre/maplibre-gl.min.js?v=6"></script>
-    <script type="module" src="./js/main.js?v=6"></script>
+    <script defer src="./vendor/maplibre/maplibre-gl.min.js?v=7"></script>
+    <script type="module" src="./js/main.js?v=7"></script>
   </body>
 </html>

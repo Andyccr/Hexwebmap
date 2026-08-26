@@ -21,7 +21,7 @@ const zh = {
   routeEmpty: "选择起终点后计算路线",
   noRoute: "无法规划该路线",
   measure: "测距",
-  measuring: "点击地图加点，再点测距结束",
+  measuring: "点击加点，双击结束，Backspace 撤销",
   locateFail: "无法获取当前位置",
   shared: "链接已复制",
   about: "关于",
@@ -38,10 +38,16 @@ const zh = {
   aboutData:
     "地图数据 © OpenStreetMap 贡献者（ODbL）。矢量样式来自 OpenFreeMap / OpenMapTiles。栅格可选 OSM Carto、HOT、CyclOSM、OpenTopoMap 与 Esri 影像。",
   aboutPerf:
-    "架构：docs/ 静态文件 + CDN 上的 MapLibre。瓦片与检索直连公共服务；结果缓存在浏览器内存。适合 GitHub Pages「打开就能看」。",
+    "架构：静态文件 + 本地 MapLibre。缩放时取消过期瓦片请求，结果 LRU 缓存在内存。键盘：/ 搜索，方向键平移，+/- 缩放，L 图层，R 路线，M 测距。",
   loading: "正在载入地图…",
   lang: "English",
   currentLocation: "当前位置",
+  zoomIn: "放大",
+  zoomOut: "缩小",
+  north: "正北 / 复位",
+  tilt: "倾斜 3D",
+  locate: "定位",
+  share: "分享",
 };
 
 const en = {
@@ -67,7 +73,7 @@ const en = {
   routeEmpty: "Set origin and destination to route",
   noRoute: "No route found",
   measure: "Measure",
-  measuring: "Click to add points, click Measure again to stop",
+  measuring: "Click to add points, double-click to finish, Backspace to undo",
   locateFail: "Location unavailable",
   shared: "Link copied",
   about: "About",
@@ -84,10 +90,16 @@ const en = {
   aboutData:
     "Map data © OpenStreetMap contributors (ODbL). Vector styles from OpenFreeMap / OpenMapTiles. Optional rasters: OSM Carto, HOT, CyclOSM, OpenTopoMap, Esri imagery.",
   aboutPerf:
-    "Architecture: static files in docs/ plus MapLibre from CDN. Tiles and geocoding hit public services; results cache in memory. Built to open on GitHub Pages with zero install.",
+    "Architecture: static files plus local MapLibre. In-flight tiles cancel while zooming; results LRU-cache in memory. Keys: / search, arrows pan, +/- zoom, L layers, R route, M measure.",
   loading: "Loading map…",
   lang: "中文",
   currentLocation: "Current location",
+  zoomIn: "Zoom in",
+  zoomOut: "Zoom out",
+  north: "North / reset",
+  tilt: "Tilt 3D",
+  locate: "Locate",
+  share: "Share",
 };
 
 export function t(lang) {
@@ -103,6 +115,13 @@ export function applyI18n(root, lang) {
   root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const key = el.getAttribute("data-i18n-placeholder");
     if (key && msg[key] != null) el.setAttribute("placeholder", msg[key]);
+  });
+  root.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-title");
+    if (key && msg[key] != null) {
+      el.setAttribute("title", msg[key]);
+      el.setAttribute("aria-label", msg[key]);
+    }
   });
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   document.title = lang === "zh" ? "Hexwebmap · 全球地图" : "Hexwebmap · World map";
