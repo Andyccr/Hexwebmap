@@ -11,6 +11,7 @@ const NOMINATIM = "https://nominatim.openstreetmap.org";
 const OSRM = "https://router.project-osrm.org";
 
 const memory = new Map();
+const MEMORY_MAX = 80;
 
 function cached(key) {
   const hit = memory.get(key);
@@ -19,11 +20,17 @@ function cached(key) {
     memory.delete(key);
     return undefined;
   }
+  memory.delete(key);
+  memory.set(key, hit);
   return hit.data;
 }
 
 function remember(key, data, ttl = 300_000) {
+  if (memory.has(key)) memory.delete(key);
   memory.set(key, { data, exp: Date.now() + ttl });
+  while (memory.size > MEMORY_MAX) {
+    memory.delete(memory.keys().next().value);
+  }
   return data;
 }
 

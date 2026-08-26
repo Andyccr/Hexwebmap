@@ -10,7 +10,7 @@ import {
 import { defaultView, parseMapHash } from "./hash.js";
 import { applyI18n, t } from "./i18n.js";
 import { createMapController } from "./map.js";
-import { DEFAULT_STYLE_ID, getStyle, MAP_STYLES } from "./styles.js";
+import { DEFAULT_STYLE_ID, getStyle, MAP_STYLES, resolveStyle } from "./styles.js";
 
 function createBus() {
   const map = new Map();
@@ -81,6 +81,17 @@ const bus = createBus();
 const $ = (id) => document.getElementById(id);
 const app = $("app");
 
+(function prefetchStyle() {
+  const href = resolveStyle(state.styleId);
+  if (typeof href !== "string") return;
+  const link = document.createElement("link");
+  link.rel = "preload";
+  link.as = "fetch";
+  link.crossOrigin = "anonymous";
+  link.href = href;
+  document.head.appendChild(link);
+})();
+
 function msg() {
   return t(state.lang);
 }
@@ -93,6 +104,34 @@ function toast(text) {
   toast._t = setTimeout(() => {
     el.hidden = true;
   }, 2400);
+}
+
+function holdRepeat(btn, fn) {
+  let timer = 0;
+  const start = (e) => {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    fn();
+    clearInterval(timer);
+    timer = setInterval(fn, 170);
+  };
+  const stop = () => clearInterval(timer);
+  btn.addEventListener("pointerdown", start);
+  btn.addEventListener("pointerup", stop);
+  btn.addEventListener("pointerleave", stop);
+  btn.addEventListener("pointercancel", stop);
+  btn.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+function stopMeasure(clear = true) {
+  state.clickMode = "browse";
+  if (clear) {
+    state.measure = [];
+    mapCtrl?.setMeasure([]);
+  }
+  mapCtrl?.setCursor("browse");
+  $("btn-measure").classList.remove("live");
+  updateMeasureBanner();
 }
 
 let mapCtrl;
@@ -338,8 +377,11 @@ function runSearch(q) {
         state.results = [];
         renderSearchMenu([], msg().noResults);
       });
-  }, 260);
+  }, 180);
 }
+
+let routeAbort;
+let routeKey = "";
 
 function renderRoutePanel() {
   const fromBtn = $("route-from");
@@ -354,17 +396,30 @@ function renderRoutePanel() {
   const note = $("route-note");
   const result = $("route-result");
   if (!state.routeFrom || !state.routeTo) {
+    routeKey = "";
     note.hidden = false;
     note.textContent = msg().routeEmpty;
     result.hidden = true;
-    mapCtrl.setRoute(null);
+    mapCtrl?.setRoute(null);
     return;
   }
+  const key = `${state.routeProfile}:${state.routeFrom.lon},${state.routeFrom.lat}:${state.routeTo.lon},${state.routeTo.lat}`;
+  if (key === routeKey && state.route) {
+    note.hidden = true;
+    result.hidden = false;
+    $("route-distance").textContent = formatDistance(state.route.distance, state.lang);
+    $("route-duration").textContent = formatDuration(state.route.duration, state.lang);
+    return;
+  }
+  routeKey = key;
   note.hidden = false;
   note.textContent = msg().searching;
   result.hidden = true;
-  fetchRoute(state.routeFrom, state.routeTo, state.routeProfile)
+  routeAbort?.abort();
+  routeAbort = new AbortController();
+  fetchRoute(state.routeFrom, state.routeTo, state.routeProfile, routeAbort.signal)
     .then((route) => {
+      if (key !== routeKey) return;
       state.route = route;
       mapCtrl.setRoute(route.geometry.coordinates);
       note.hidden = true;
@@ -384,7 +439,9 @@ function renderRoutePanel() {
       }
       mapCtrl.flyTo({ lat: (s + n) / 2, lon: (w + e) / 2, bbox: [w, s, e, n] });
     })
-    .catch(() => {
+    .catch((err) => {
+      if (err?.name === "AbortError") return;
+      if (key !== routeKey) return;
       state.route = null;
       mapCtrl.setRoute(null);
       note.hidden = false;
@@ -395,8 +452,13 @@ function renderRoutePanel() {
 
 function updateStatus() {
   $("status-coords").textContent = formatCoord(state.view.lat, state.view.lon);
-  $("status-zoom").textContent = `z ${state.view.zoom.toFixed(2)}`;
+  const bearing = Math.abs(state.view.bearing) > 0.4 ? ` · ${state.view.bearing.toFixed(0)}°` : "";
+  $("status-zoom").textContent = `z ${state.view.zoom.toFixed(2)}${bearing}`;
   $("status-style").textContent = getStyle(state.styleId).name[state.lang];
+  const north = $("btn-north");
+  north.style.transform = `rotate(${-state.view.bearing}deg)`;
+  north.classList.toggle("live", Math.abs(state.view.bearing) > 1 || state.view.pitch > 2);
+  $("btn-tilt").classList.toggle("live", state.view.pitch > 8);
 }
 
 function updateMeasureBanner() {
@@ -431,6 +493,7 @@ bus.on("place", (place) => renderPlace(place));
 bus.on("panel", (name) => openPanel(name));
 bus.on("route-ends", () => renderRoutePanel());
 bus.on("measure", () => updateMeasureBanner());
+bus.on("measure-end", () => stopMeasure(false));
 
 $("btn-lang").addEventListener("click", () => {
   state.lang = state.lang === "zh" ? "en" : "zh";
@@ -456,8 +519,10 @@ document.querySelectorAll(".panel-close").forEach((btn) =>
   btn.addEventListener("click", closePanels),
 );
 
-$("btn-zoom-in").addEventListener("click", () => mapCtrl?.zoomBy(1));
-$("btn-zoom-out").addEventListener("click", () => mapCtrl?.zoomBy(-1));
+$("btn-zoom-in").addEventListener("click", (e) => e.preventDefault());
+$("btn-zoom-out").addEventListener("click", (e) => e.preventDefault());
+holdRepeat($("btn-zoom-in"), () => mapCtrl?.zoomBy(0.6));
+holdRepeat($("btn-zoom-out"), () => mapCtrl?.zoomBy(-0.6));
 $("btn-north").addEventListener("click", () => mapCtrl?.north());
 $("btn-tilt").addEventListener("click", () => mapCtrl?.tilt());
 $("btn-layers").addEventListener("click", () =>
@@ -491,22 +556,20 @@ $("btn-locate").addEventListener("click", () => {
       renderPlace(place);
     },
     () => toast(msg().locateFail),
-    { enableHighAccuracy: true, timeout: 8000 },
+    { enableHighAccuracy: false, maximumAge: 20_000, timeout: 6000 },
   );
 });
 $("btn-measure").addEventListener("click", () => {
   if (state.clickMode === "measure") {
-    state.clickMode = "browse";
+    stopMeasure(true);
+  } else {
     state.measure = [];
     mapCtrl.setMeasure([]);
-    mapCtrl.setCursor("browse");
-    $("btn-measure").classList.remove("live");
-  } else {
     state.clickMode = "measure";
     mapCtrl.setCursor("measure");
     $("btn-measure").classList.add("live");
+    updateMeasureBanner();
   }
-  updateMeasureBanner();
 });
 
 $("route-from").addEventListener("click", () => {
@@ -583,14 +646,67 @@ $("search-form").addEventListener("submit", (e) => {
 
 window.addEventListener("keydown", (e) => {
   const tag = e.target?.tagName;
-  const typing = tag === "INPUT" || tag === "TEXTAREA";
-  if (e.key === "Escape") closePanels();
+  const typing = tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable;
+  if (e.key === "Escape") {
+    if (state.clickMode === "measure") {
+      stopMeasure(false);
+      return;
+    }
+    closePanels();
+    return;
+  }
   if (typing) return;
   if (e.key === "/" || e.key === "f" || e.key === "F") {
     e.preventDefault();
     input.focus();
+    return;
   }
-  if (e.key === "=" || e.key === "+") mapCtrl?.zoomBy(1);
-  if (e.key === "-" || e.key === "_") mapCtrl?.zoomBy(-1);
-  if (e.key === "0") mapCtrl?.north();
+  if (e.key === "=" || e.key === "+") {
+    e.preventDefault();
+    mapCtrl?.zoomBy(e.shiftKey ? 1 : 0.6);
+  }
+  if (e.key === "-" || e.key === "_") {
+    e.preventDefault();
+    mapCtrl?.zoomBy(e.shiftKey ? -1 : -0.6);
+  }
+  if (e.key === "0") {
+    e.preventDefault();
+    mapCtrl?.north();
+  }
+  if (e.key === "l" || e.key === "L") {
+    e.preventDefault();
+    state.panel === "layers" ? closePanels() : openPanel("layers");
+  }
+  if (e.key === "r" || e.key === "R") {
+    e.preventDefault();
+    state.panel === "route" ? closePanels() : openPanel("route");
+  }
+  if (e.key === "m" || e.key === "M") {
+    e.preventDefault();
+    $("btn-measure").click();
+  }
+  if (e.key === "Backspace" && state.clickMode === "measure") {
+    e.preventDefault();
+    if (!state.measure.length) {
+      stopMeasure();
+      return;
+    }
+    state.measure = state.measure.slice(0, -1);
+    mapCtrl.setMeasure(state.measure);
+    updateMeasureBanner();
+  }
+  const step = e.shiftKey ? 160 : 96;
+  if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    e.altKey ? mapCtrl?.rotateBy(-12) : mapCtrl?.panBy(-step, 0);
+  } else if (e.key === "ArrowRight") {
+    e.preventDefault();
+    e.altKey ? mapCtrl?.rotateBy(12) : mapCtrl?.panBy(step, 0);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    mapCtrl?.panBy(0, -step);
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    mapCtrl?.panBy(0, step);
+  }
 });
