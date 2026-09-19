@@ -1,5 +1,7 @@
 import { fetchRoute, searchPlaces } from "./api.js";
+import { $, createBus, escapeHtml, holdRepeat } from "./dom.js";
 import {
+  bboxOfLine,
   formatCoord,
   formatDistance,
   formatDuration,
@@ -12,19 +14,6 @@ import { applyI18n, t } from "./i18n.js";
 import { createMapController } from "./map.js";
 import { DEFAULT_STYLE_ID, getStyle, MAP_STYLES, resolveStyle } from "./styles.js";
 
-function createBus() {
-  const map = new Map();
-  return {
-    on(type, fn) {
-      if (!map.has(type)) map.set(type, new Set());
-      map.get(type).add(fn);
-    },
-    emit(type, payload) {
-      for (const fn of map.get(type) || []) fn(payload);
-    },
-  };
-}
-
 function initialLang() {
   const saved = localStorage.getItem("hexwebmap.lang");
   if (saved === "zh" || saved === "en") return saved;
@@ -33,8 +22,8 @@ function initialLang() {
 
 function initialStyle() {
   const hash = parseMapHash(location.hash);
-  if (hash?.style) return hash.style;
-  return localStorage.getItem("hexwebmap.style") || DEFAULT_STYLE_ID;
+  const id = hash?.style || localStorage.getItem("hexwebmap.style") || DEFAULT_STYLE_ID;
+  return getStyle(id).id;
 }
 
 function initialView() {
@@ -78,7 +67,6 @@ const state = {
 };
 
 const bus = createBus();
-const $ = (id) => document.getElementById(id);
 const app = $("app");
 
 (function prefetchStyle() {
@@ -106,23 +94,6 @@ function toast(text) {
   }, 2400);
 }
 
-function holdRepeat(btn, fn) {
-  let timer = 0;
-  const start = (e) => {
-    if (e.button != null && e.button !== 0) return;
-    e.preventDefault();
-    fn();
-    clearInterval(timer);
-    timer = setInterval(fn, 170);
-  };
-  const stop = () => clearInterval(timer);
-  btn.addEventListener("pointerdown", start);
-  btn.addEventListener("pointerup", stop);
-  btn.addEventListener("pointerleave", stop);
-  btn.addEventListener("pointercancel", stop);
-  btn.addEventListener("contextmenu", (e) => e.preventDefault());
-}
-
 function stopMeasure(clear = true) {
   state.clickMode = "browse";
   if (clear) {
@@ -136,35 +107,49 @@ function stopMeasure(clear = true) {
 
 let mapCtrl;
 let fellBack = false;
+let lastFocus = null;
+
 try {
-  if (!globalThis.maplibregl) {
-    throw new Error("MapLibre GL script missing");
-  }
+  if (!globalThis.maplibregl) throw new Error("MapLibre GL script missing");
   mapCtrl = createMapController($("map"), state, bus);
 } catch (err) {
   console.error(err);
   const loading = $("map-loading");
   if (loading) {
     loading.hidden = false;
-    loading.innerHTML = `<p>地图引擎加载失败：${String(err.message || err)}</p>`;
+    loading.innerHTML = `<p>${escapeHtml(msg().engineFail)}：${escapeHtml(err.message || err)}</p>`;
   }
 }
+
+setTimeout(() => {
+  if (state.loaded) return;
+  const loading = $("map-loading");
+  if (!loading || loading.hidden) return;
+  if (!loading.querySelector("p")) return;
+  if (/失败|fail/i.test(loading.textContent || "")) return;
+  loading.innerHTML = `<p>${escapeHtml(msg().loadTimeout)}</p>`;
+}, 16_000);
 
 bus.on("map-error", (err) => {
   if (fellBack || !mapCtrl || state.styleId === "osm") return;
   fellBack = true;
   console.warn("[hexwebmap] falling back to OSM raster", err);
-  mapCtrl.setStyle("osm");
+  mapCtrl?.setStyle("osm");
   toast(state.lang === "zh" ? "矢量底图暂不可用，已切换 OSM 栅格" : "Vector style unavailable; switched to OSM raster");
 });
 
 function closePanels() {
+  const wasAbout = state.panel === "about";
   state.panel = "none";
   $("panel-layers").hidden = true;
   $("panel-place").hidden = true;
   $("panel-route").hidden = true;
   $("about-modal").hidden = true;
   ["btn-layers", "btn-route"].forEach((id) => $(id).classList.remove("live"));
+  if (wasAbout && lastFocus && typeof lastFocus.focus === "function") {
+    lastFocus.focus();
+    lastFocus = null;
+  }
 }
 
 function openPanel(name) {
@@ -181,7 +166,9 @@ function openPanel(name) {
     $("btn-route").classList.add("live");
     renderRoutePanel();
   } else if (name === "about") {
+    lastFocus = document.activeElement;
     $("about-modal").hidden = false;
+    $("about-close").focus();
   }
 }
 
@@ -198,20 +185,19 @@ function renderLayers() {
       const cards = MAP_STYLES.filter((s) => s.group === id)
         .map(
           (s) => `
-        <button type="button" class="layer-card ${state.styleId === s.id ? "active" : ""}" data-style="${s.id}">
-          <span class="swatch" data-style="${s.id}"></span>
-          <strong>${s.name[state.lang]}</strong>
-          <em>${s.description[state.lang]}</em>
+        <button type="button" class="layer-card ${state.styleId === s.id ? "active" : ""}" data-style="${escapeHtml(s.id)}">
+          <span class="swatch" data-style="${escapeHtml(s.id)}"></span>
+          <strong>${escapeHtml(s.name[state.lang])}</strong>
+          <em>${escapeHtml(s.description[state.lang])}</em>
         </button>`,
         )
         .join("");
-      return `<section><h3>${label}</h3><div class="layer-grid">${cards}</div></section>`;
+      return `<section><h3>${escapeHtml(label)}</h3><div class="layer-grid">${cards}</div></section>`;
     })
     .join("");
-  body.querySelectorAll("[data-style]").forEach((btn) => {
-    if (!btn.classList.contains("layer-card")) return;
+  body.querySelectorAll(".layer-card").forEach((btn) => {
     btn.addEventListener("click", () => {
-      mapCtrl.setStyle(btn.getAttribute("data-style"));
+      mapCtrl?.setStyle(btn.getAttribute("data-style"));
       renderLayers();
       applyChromeTheme();
     });
@@ -219,31 +205,36 @@ function renderLayers() {
 }
 
 function applyChromeTheme() {
-  app.classList.toggle("dark", state.styleId === "dark" || state.styleId === "fiord");
+  const dark = state.styleId === "dark" || state.styleId === "fiord";
+  app.classList.toggle("dark", dark);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#12161c" : "#ffffff");
 }
 
-function renderPlace(place) {
-  openPanel("place");
+function renderPlace(place, open = true) {
+  if (!place) return;
+  if (open) openPanel("place");
+  else if (state.panel !== "place") return;
   const title = place.name || formatCoord(place.lat, place.lon);
   const sub = place.displayName || place.label || "";
   $("place-title").textContent = title;
   $("place-sub").textContent = sub;
-  const meta = $("place-meta");
-  meta.innerHTML = `
-    <div><dt>${msg().coords}</dt><dd>${formatCoord(place.lat, place.lon)}</dd></div>
-    ${
-      place.category
-        ? `<div><dt>${msg().place}</dt><dd>${place.category}${place.type ? ` / ${place.type}` : ""}</dd></div>`
-        : ""
-    }`;
+  const cat = place.category
+    ? `<div><dt>${escapeHtml(msg().place)}</dt><dd>${escapeHtml(place.category)}${
+        place.type ? ` / ${escapeHtml(place.type)}` : ""
+      }</dd></div>`
+    : "";
+  $("place-meta").innerHTML = `<div><dt>${escapeHtml(msg().coords)}</dt><dd>${escapeHtml(
+    formatCoord(place.lat, place.lon),
+  )}</dd></div>${cat}`;
   const addr = place.address || {};
-  const entries = Object.entries(addr).slice(0, 12);
+  const entries = Object.entries(addr).filter(([, v]) => v != null && String(v).trim()).slice(0, 12);
   const addrSec = $("place-address");
   const addrList = $("place-address-list");
   if (entries.length) {
     addrSec.hidden = false;
     addrList.innerHTML = entries
-      .map(([k, v]) => `<li><span>${k}</span><strong>${v}</strong></li>`)
+      .map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></li>`)
       .join("");
   } else {
     addrSec.hidden = true;
@@ -258,10 +249,10 @@ function renderPlace(place) {
       .map((f) => {
         const props = Object.entries(f.properties || {})
           .slice(0, 8)
-          .map(([k, v]) => `<li><span>${k}</span><strong>${String(v)}</strong></li>`)
+          .map(([k, v]) => `<li><span>${escapeHtml(k)}</span><strong>${escapeHtml(v)}</strong></li>`)
           .join("");
-        return `<div class="inspect-card"><strong>${f.sourceLayer || f.layerId}${
-          f.geometryType ? ` · ${f.geometryType}` : ""
+        return `<div class="inspect-card"><strong>${escapeHtml(f.sourceLayer || f.layerId)}${
+          f.geometryType ? ` · ${escapeHtml(f.geometryType)}` : ""
         }</strong><ul class="kv">${props}</ul></div>`;
       })
       .join("");
@@ -277,7 +268,11 @@ function renderPlace(place) {
 
 function remember(hit) {
   state.recent = [hit, ...state.recent.filter((r) => r.id !== hit.id)].slice(0, 8);
-  localStorage.setItem("hexwebmap.recent", JSON.stringify(state.recent));
+  try {
+    localStorage.setItem("hexwebmap.recent", JSON.stringify(state.recent));
+  } catch {
+    /* quota */
+  }
 }
 
 function chooseHit(hit) {
@@ -285,9 +280,9 @@ function chooseHit(hit) {
   state.selected = hit;
   state.place = null;
   state.inspect = [];
-  mapCtrl.setMarker(hit.lon, hit.lat);
-  mapCtrl.flyTo({ lat: hit.lat, lon: hit.lon, zoom: 14, bbox: hit.bbox });
-  renderPlace(hit);
+  mapCtrl?.setMarker(hit.lon, hit.lat);
+  mapCtrl?.flyTo({ lat: hit.lat, lon: hit.lon, zoom: 14, bbox: hit.bbox });
+  renderPlace(hit, true);
   $("search-input").value = hit.name;
   $("search-menu").hidden = true;
 }
@@ -299,39 +294,48 @@ let activeIdx = 0;
 function renderSearchMenu(items, note) {
   const menu = $("search-menu");
   if (note) {
-    menu.innerHTML = `<div class="search-note">${note}</div>`;
+    menu.innerHTML = `<div class="search-note">${escapeHtml(note)}</div>`;
     menu.hidden = false;
     return;
   }
   if (!items.length && !$("search-input").value.trim()) {
     if (state.recent.length) {
       menu.innerHTML =
-        `<div class="search-label">${msg().recent}</div>` +
+        `<div class="search-label">${escapeHtml(msg().recent)}</div>` +
         state.recent
           .map(
             (hit, i) =>
-              `<button type="button" class="search-item" data-i="${i}" data-recent="1"><strong>${hit.name}</strong><span>${hit.label}</span></button>`,
+              `<button type="button" class="search-item" data-i="${i}" data-recent="1"><strong>${escapeHtml(
+                hit.name,
+              )}</strong><span>${escapeHtml(hit.label)}</span></button>`,
           )
           .join("");
       menu.hidden = false;
+      bindSearchItems(menu);
       return;
     }
-    menu.innerHTML = `<div class="search-note">${msg().searchHint}</div>`;
+    menu.innerHTML = `<div class="search-note">${escapeHtml(msg().searchHint)}</div>`;
     menu.hidden = false;
     return;
   }
   menu.innerHTML = items
     .map(
       (hit, i) =>
-        `<button type="button" class="search-item ${i === activeIdx ? "active" : ""}" data-i="${i}"><strong>${hit.name}</strong><span>${hit.label}</span></button>`,
+        `<button type="button" class="search-item ${i === activeIdx ? "active" : ""}" data-i="${i}"><strong>${escapeHtml(
+          hit.name,
+        )}</strong><span>${escapeHtml(hit.label)}</span></button>`,
     )
     .join("");
   menu.hidden = false;
+  bindSearchItems(menu);
+}
+
+function bindSearchItems(menu) {
   menu.querySelectorAll(".search-item").forEach((btn) => {
     btn.addEventListener("mousedown", (e) => e.preventDefault());
     btn.addEventListener("click", () => {
       const i = Number(btn.getAttribute("data-i"));
-      const list = btn.hasAttribute("data-recent") ? state.recent : state.results;
+      const list = btn.hasAttribute("data-recent") ? state.recent : currentHits();
       const hit = list[i];
       if (hit) chooseHit(hit);
     });
@@ -356,15 +360,22 @@ function currentHits() {
 function runSearch(q) {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
-    if (q.trim().length < 2) {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) {
       state.results = [];
       renderSearchMenu([]);
+      return;
+    }
+    if (parseCoordinateQuery(trimmed)) {
+      state.results = [];
+      activeIdx = 0;
+      renderSearchMenu(currentHits());
       return;
     }
     searchAbort?.abort();
     searchAbort = new AbortController();
     renderSearchMenu([], msg().searching);
-    searchPlaces(q.trim(), state.lang, searchAbort.signal)
+    searchPlaces(trimmed, state.lang, searchAbort.signal, state.view)
       .then((data) => {
         state.results = data.hits;
         activeIdx = 0;
@@ -377,7 +388,7 @@ function runSearch(q) {
         state.results = [];
         renderSearchMenu([], msg().noResults);
       });
-  }, 180);
+  }, 160);
 }
 
 let routeAbort;
@@ -421,29 +432,19 @@ function renderRoutePanel() {
     .then((route) => {
       if (key !== routeKey) return;
       state.route = route;
-      mapCtrl.setRoute(route.geometry.coordinates);
+      mapCtrl?.setRoute(route.geometry.coordinates);
       note.hidden = true;
       result.hidden = false;
       $("route-distance").textContent = formatDistance(route.distance, state.lang);
       $("route-duration").textContent = formatDuration(route.duration, state.lang);
-      const coords = route.geometry.coordinates;
-      let w = 180,
-        s = 90,
-        e = -180,
-        n = -90;
-      for (const [lon, lat] of coords) {
-        w = Math.min(w, lon);
-        s = Math.min(s, lat);
-        e = Math.max(e, lon);
-        n = Math.max(n, lat);
-      }
-      mapCtrl.flyTo({ lat: (s + n) / 2, lon: (w + e) / 2, bbox: [w, s, e, n] });
+      const bbox = bboxOfLine(route.geometry.coordinates);
+      mapCtrl?.flyTo({ lat: (bbox[1] + bbox[3]) / 2, lon: (bbox[0] + bbox[2]) / 2, bbox });
     })
     .catch((err) => {
       if (err?.name === "AbortError") return;
       if (key !== routeKey) return;
       state.route = null;
-      mapCtrl.setRoute(null);
+      mapCtrl?.setRoute(null);
       note.hidden = false;
       note.textContent = msg().noRoute;
       result.hidden = true;
@@ -476,7 +477,6 @@ function updateMeasureBanner() {
   banner.hidden = false;
 }
 
-/* wire UI */
 applyI18n(document, state.lang);
 applyChromeTheme();
 updateStatus();
@@ -489,7 +489,8 @@ bus.on("style", () => {
   applyChromeTheme();
   updateStatus();
 });
-bus.on("place", (place) => renderPlace(place));
+bus.on("place", (place) => renderPlace(place, true));
+bus.on("place-update", (place) => renderPlace(place, false));
 bus.on("panel", (name) => openPanel(name));
 bus.on("route-ends", () => renderRoutePanel());
 bus.on("measure", () => updateMeasureBanner());
@@ -502,7 +503,7 @@ $("btn-lang").addEventListener("click", () => {
   updateStatus();
   if (state.panel === "layers") renderLayers();
   if (state.panel === "route") renderRoutePanel();
-  if (state.panel === "place" && state.selected) renderPlace(state.selected);
+  if (state.panel === "place" && state.selected) renderPlace(state.selected, false);
   updateMeasureBanner();
 });
 
@@ -551,9 +552,9 @@ $("btn-locate").addEventListener("click", () => {
         extratags: {},
       };
       state.selected = place;
-      mapCtrl.setMarker(place.lon, place.lat);
-      mapCtrl.flyTo({ lat: place.lat, lon: place.lon, zoom: 15 });
-      renderPlace(place);
+      mapCtrl?.setMarker(place.lon, place.lat);
+      mapCtrl?.flyTo({ lat: place.lat, lon: place.lon, zoom: 15 });
+      renderPlace(place, true);
     },
     () => toast(msg().locateFail),
     { enableHighAccuracy: false, maximumAge: 20_000, timeout: 6000 },
@@ -564,9 +565,9 @@ $("btn-measure").addEventListener("click", () => {
     stopMeasure(true);
   } else {
     state.measure = [];
-    mapCtrl.setMeasure([]);
+    mapCtrl?.setMeasure([]);
     state.clickMode = "measure";
-    mapCtrl.setCursor("measure");
+    mapCtrl?.setCursor("measure");
     $("btn-measure").classList.add("live");
     updateMeasureBanner();
   }
@@ -574,12 +575,12 @@ $("btn-measure").addEventListener("click", () => {
 
 $("route-from").addEventListener("click", () => {
   state.clickMode = state.clickMode === "route-from" ? "browse" : "route-from";
-  mapCtrl.setCursor(state.clickMode);
+  mapCtrl?.setCursor(state.clickMode);
   renderRoutePanel();
 });
 $("route-to").addEventListener("click", () => {
   state.clickMode = state.clickMode === "route-to" ? "browse" : "route-to";
-  mapCtrl.setCursor(state.clickMode);
+  mapCtrl?.setCursor(state.clickMode);
   renderRoutePanel();
 });
 $("route-swap").addEventListener("click", () => {
@@ -692,7 +693,7 @@ window.addEventListener("keydown", (e) => {
       return;
     }
     state.measure = state.measure.slice(0, -1);
-    mapCtrl.setMeasure(state.measure);
+    mapCtrl?.setMeasure(state.measure);
     updateMeasureBanner();
   }
   const step = e.shiftKey ? 160 : 96;
@@ -710,3 +711,7 @@ window.addEventListener("keydown", (e) => {
     mapCtrl?.panBy(0, step);
   }
 });
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register(new URL("../sw.js", import.meta.url)).catch(() => {});
+}

@@ -7,11 +7,20 @@ export function parseMapHash(hash) {
   if (!raw) return null;
   let mapPart = raw;
   let style;
-  if (raw.includes("&") || raw.startsWith("map=")) {
-    for (const bit of raw.split("&")) {
-      if (bit.startsWith("map=")) mapPart = bit;
-      else if (bit.startsWith("s=")) style = decodeURIComponent(bit.slice(2));
-      else if (bit.startsWith("style=")) style = decodeURIComponent(bit.slice(6));
+  for (const bit of raw.split("&")) {
+    if (bit.startsWith("map=")) mapPart = bit;
+    else if (bit.startsWith("s=")) {
+      try {
+        style = decodeURIComponent(bit.slice(2));
+      } catch {
+        style = undefined;
+      }
+    } else if (bit.startsWith("style=")) {
+      try {
+        style = decodeURIComponent(bit.slice(6));
+      } catch {
+        style = undefined;
+      }
     }
   }
   const m = MAP_RE.exec(mapPart);

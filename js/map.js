@@ -1,4 +1,4 @@
-import { formatCoord, pathLengthMeters } from "./geo.js";
+import { formatCoord, pathLengthMeters, simplifyForZoom } from "./geo.js";
 import { parseMapHash, serializeMapHash } from "./hash.js";
 import { getStyle, resolveStyle } from "./styles.js";
 import { reverseGeocode } from "./api.js";
@@ -47,7 +47,6 @@ export function createMapController(el, state, bus) {
   let marker;
   let applyingHash = false;
   let reverseCtrl;
-  let styleReady = false;
   let viewRaf = 0;
   let hashTimer = 0;
   let inspectTimer = 0;
@@ -100,11 +99,16 @@ export function createMapController(el, state, bus) {
   function setRoute(coords) {
     const src = map.getSource(ROUTE);
     if (!src) return;
-    src.setData(
-      coords && coords.length >= 2
-        ? { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } }
-        : emptyLine(),
-    );
+    if (!coords || coords.length < 2) {
+      src.setData(emptyLine());
+      return;
+    }
+    const drawn = simplifyForZoom(coords, map.getZoom());
+    src.setData({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: drawn },
+    });
   }
 
   function setMeasure(points) {
@@ -155,6 +159,7 @@ export function createMapController(el, state, bus) {
   }
 
   function inspectAt(e) {
+    if (map.getZoom() < 12) return [];
     const rendered = map.queryRenderedFeatures(e.point);
     const seen = new Set();
     const out = [];
@@ -226,9 +231,11 @@ export function createMapController(el, state, bus) {
         state.place = place;
         state.selected = place;
         setMarker(place.lon, place.lat);
-        bus.emit("place", place);
+        bus.emit("place-update", place);
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+      });
   }
 
   const maplibregl = ml();
@@ -274,18 +281,25 @@ export function createMapController(el, state, bus) {
   map.scrollZoom.setZoomRate(1 / 180);
   map.dragPan.enable({ linearity: 0.35, maxSpeed: 1400, deceleration: 2500 });
 
+  let styleArmed = true;
   map.on("error", (e) => {
-    console.error("[hexwebmap]", e?.error || e);
-    bus.emit("map-error", e?.error || e);
+    const err = e?.error || e;
+    const msg = String(err?.message || err || "");
+    const blob = `${msg} ${e?.sourceId || ""} ${err?.url || ""}`;
+    if (!styleArmed && /tile|glyph|sprite|image|source/i.test(blob)) return;
+    console.error("[hexwebmap]", err);
+    if (styleArmed) bus.emit("map-error", err);
   });
 
   map.on("load", () => {
+    styleArmed = false;
     ensureOverlays();
     state.loaded = true;
     bus.emit("loaded");
     syncHash();
   });
   map.on("style.load", () => {
+    styleArmed = false;
     ensureOverlays();
     setRoute(state.route?.geometry?.coordinates || null);
     setMeasure(state.measure);
@@ -385,10 +399,8 @@ export function createMapController(el, state, bus) {
   return {
     map,
     setStyle(id) {
-      if (!styleReady) {
-        styleReady = true;
-        if (id === state.styleId) return;
-      }
+      if (id === state.styleId && map.isStyleLoaded?.()) return;
+      styleArmed = true;
       state.styleId = id;
       localStorage.setItem("hexwebmap.style", id);
       map.setStyle(resolveStyle(id));
