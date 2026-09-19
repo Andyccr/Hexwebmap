@@ -38,8 +38,10 @@ const zh = {
   aboutData:
     "地图数据 © OpenStreetMap 贡献者（ODbL）。矢量样式来自 OpenFreeMap / OpenMapTiles。栅格可选 OSM Carto、HOT、CyclOSM、OpenTopoMap 与 Esri 影像。",
   aboutPerf:
-    "架构：静态文件 + 本地 MapLibre。缩放时取消过期瓦片请求，结果 LRU 缓存在内存。键盘：/ 搜索，方向键平移，+/- 缩放，L 图层，R 路线，M 测距。",
+    "架构：根目录静态站点 + 本地 MapLibre，GitHub Actions 发布。搜索按名称匹配与距视野中心距离排序；路线几何用 Douglas–Peucker 简化。键盘：/ 搜索，方向键平移，+/- 缩放，L 图层，R 路线，M 测距。",
   loading: "正在载入地图…",
+  engineFail: "地图引擎加载失败",
+  loadTimeout: "地图加载超时，请刷新或切换图层",
   lang: "English",
   currentLocation: "当前位置",
   zoomIn: "放大",
@@ -90,8 +92,10 @@ const en = {
   aboutData:
     "Map data © OpenStreetMap contributors (ODbL). Vector styles from OpenFreeMap / OpenMapTiles. Optional rasters: OSM Carto, HOT, CyclOSM, OpenTopoMap, Esri imagery.",
   aboutPerf:
-    "Architecture: static files plus local MapLibre. In-flight tiles cancel while zooming; results LRU-cache in memory. Keys: / search, arrows pan, +/- zoom, L layers, R route, M measure.",
+    "Architecture: static site at repo root plus local MapLibre, published by GitHub Actions. Search ranks by name match and distance to view center; routes are Douglas–Peucker simplified. Keys: / search, arrows pan, +/- zoom, L layers, R route, M measure.",
   loading: "Loading map…",
+  engineFail: "Map engine failed to load",
+  loadTimeout: "Map load timed out — refresh or switch layers",
   lang: "中文",
   currentLocation: "Current location",
   zoomIn: "Zoom in",

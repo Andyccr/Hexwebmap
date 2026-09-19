@@ -24,16 +24,18 @@
     <link rel="preconnect" href="https://photon.komoot.io" crossorigin />
     <link rel="preconnect" href="https://nominatim.openstreetmap.org" crossorigin />
     <link rel="dns-prefetch" href="https://router.project-osrm.org" />
-    <link rel="preload" href="./vendor/maplibre/maplibre-gl.min.js?v=7" as="script" />
-    <link rel="modulepreload" href="./js/main.js?v=7" />
-    <link rel="modulepreload" href="./js/map.js?v=7" />
-    <link rel="modulepreload" href="./js/api.js?v=7" />
-    <link rel="modulepreload" href="./js/styles.js?v=7" />
-    <link rel="modulepreload" href="./js/geo.js?v=7" />
-    <link rel="modulepreload" href="./js/hash.js?v=7" />
-    <link rel="modulepreload" href="./js/i18n.js?v=7" />
-    <link rel="stylesheet" href="./vendor/maplibre/maplibre-gl.css?v=7" />
-    <link rel="stylesheet" href="./css/app.css?v=7" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="preload" href="./vendor/maplibre/maplibre-gl.min.js?v=8" as="script" />
+    <link rel="modulepreload" href="./js/main.js?v=8" />
+    <link rel="modulepreload" href="./js/map.js?v=8" />
+    <link rel="modulepreload" href="./js/api.js?v=8" />
+    <link rel="modulepreload" href="./js/styles.js?v=8" />
+    <link rel="modulepreload" href="./js/geo.js?v=8" />
+    <link rel="modulepreload" href="./js/hash.js?v=8" />
+    <link rel="modulepreload" href="./js/i18n.js?v=8" />
+    <link rel="modulepreload" href="./js/dom.js?v=8" />
+    <link rel="stylesheet" href="./vendor/maplibre/maplibre-gl.css?v=8" />
+    <link rel="stylesheet" href="./css/app.css?v=8" />
   </head>
   <body>
     <div id="app" class="app">
@@ -184,7 +186,7 @@
         <div class="toast" id="toast" hidden></div>
 
         <div class="modal-back" id="about-modal" hidden>
-          <article class="modal" role="dialog" aria-labelledby="about-title">
+          <article class="modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
             <header>
               <h2 id="about-title" data-i18n="about">关于</h2>
               <button type="button" class="icon-quiet" id="about-close">×</button>
@@ -204,7 +206,7 @@
       </main>
     </div>
 
-    <script defer src="./vendor/maplibre/maplibre-gl.min.js?v=7"></script>
-    <script type="module" src="./js/main.js?v=7"></script>
+    <script defer src="./vendor/maplibre/maplibre-gl.min.js?v=8"></script>
+    <script type="module" src="./js/main.js?v=8"></script>
   </body>
 </html>

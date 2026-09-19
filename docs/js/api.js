@@ -4,6 +4,7 @@ import {
   hitsFromPhoton,
   mergeHits,
   photonLang,
+  rankHits,
 } from "./geo.js";
 
 const PHOTON = "https://photon.komoot.io";
@@ -28,9 +29,7 @@ function cached(key) {
 function remember(key, data, ttl = 300_000) {
   if (memory.has(key)) memory.delete(key);
   memory.set(key, { data, exp: Date.now() + ttl });
-  while (memory.size > MEMORY_MAX) {
-    memory.delete(memory.keys().next().value);
-  }
+  while (memory.size > MEMORY_MAX) memory.delete(memory.keys().next().value);
   return data;
 }
 
@@ -46,17 +45,26 @@ function mix(signal, ms = 8000) {
   return out;
 }
 
-async function getJson(url, signal) {
+function isAbort(err) {
+  return err?.name === "AbortError";
+}
+
+async function getJson(url, signal, extraHeaders) {
   const res = await fetch(url, {
     signal: mix(signal),
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...extraHeaders },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-export async function searchPlaces(q, lang, signal) {
-  const key = `s:${lang}:${q.toLowerCase()}`;
+function biasKey(bias) {
+  if (!bias || !Number.isFinite(bias.lat) || !Number.isFinite(bias.lon)) return "";
+  return `${bias.lat.toFixed(2)},${bias.lon.toFixed(2)},${Math.round(bias.zoom || 0)}`;
+}
+
+export async function searchPlaces(q, lang, signal, bias) {
+  const key = `s:${lang}:${q.toLowerCase()}:${biasKey(bias)}`;
   const hit = cached(key);
   if (hit) return hit;
 
@@ -65,6 +73,14 @@ export async function searchPlaces(q, lang, signal) {
   photonUrl.searchParams.set("limit", "8");
   const pl = photonLang(lang);
   if (pl) photonUrl.searchParams.set("lang", pl);
+  if (bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lon)) {
+    photonUrl.searchParams.set("lat", String(bias.lat));
+    photonUrl.searchParams.set("lon", String(bias.lon));
+    if (Number.isFinite(bias.zoom)) {
+      photonUrl.searchParams.set("zoom", String(Math.round(clampZoom(bias.zoom))));
+    }
+    photonUrl.searchParams.set("location_bias_scale", "0.4");
+  }
 
   const cjk = hasHan(q);
   const nomiUrl = new URL("/search", NOMINATIM);
@@ -73,16 +89,47 @@ export async function searchPlaces(q, lang, signal) {
   nomiUrl.searchParams.set("addressdetails", "1");
   nomiUrl.searchParams.set("limit", "8");
   nomiUrl.searchParams.set("accept-language", lang === "en" ? "en" : "zh");
+  if (bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lon)) {
+    const span = Math.max(0.25, 12 / Math.max(3, bias.zoom || 6));
+    const left = bias.lon - span;
+    const right = bias.lon + span;
+    const top = bias.lat + span;
+    const bottom = bias.lat - span;
+    nomiUrl.searchParams.set("viewbox", `${left},${top},${right},${bottom}`);
+  }
 
-  const [photon, nomi] = await Promise.all([
-    getJson(photonUrl, signal).catch(() => ({ features: [] })),
-    cjk ? getJson(nomiUrl, signal).catch(() => []) : Promise.resolve([]),
-  ]);
+  const langHeader = { "Accept-Language": lang === "en" ? "en" : "zh-CN,zh;q=0.9" };
+  let photon;
+  let nomi;
+  try {
+    [photon, nomi] = await Promise.all([
+      getJson(photonUrl, signal).catch((err) => {
+        if (isAbort(err)) throw err;
+        return { features: [] };
+      }),
+      cjk
+        ? getJson(nomiUrl, signal, langHeader).catch((err) => {
+            if (isAbort(err)) throw err;
+            return [];
+          })
+        : Promise.resolve([]),
+    ]);
+  } catch (err) {
+    if (isAbort(err)) throw err;
+    return { hits: [] };
+  }
 
   const photonHits = hitsFromPhoton(photon.features, q);
   const nomiHits = hitsFromNominatim(nomi);
-  const hits = cjk ? mergeHits(nomiHits, photonHits, 8) : mergeHits(photonHits, nomiHits, 8);
-  return remember(key, { hits });
+  const merged = cjk ? mergeHits(nomiHits, photonHits, 12) : mergeHits(photonHits, nomiHits, 12);
+  const hits = rankHits(merged, q, bias).slice(0, 8);
+  const payload = { hits };
+  if (hits.length) remember(key, payload);
+  return payload;
+}
+
+function clampZoom(z) {
+  return Math.min(18, Math.max(0, z));
 }
 
 export async function reverseGeocode(lat, lon, zoom, signal) {
@@ -111,7 +158,8 @@ export async function reverseGeocode(lat, lon, zoom, signal) {
       address: data.address || {},
       extratags: data.extratags || {},
     });
-  } catch {
+  } catch (err) {
+    if (isAbort(err)) throw err;
     const url = new URL("/reverse", PHOTON);
     url.searchParams.set("lat", String(lat));
     url.searchParams.set("lon", String(lon));
@@ -143,9 +191,10 @@ export async function fetchRoute(from, to, profile, signal) {
   if (hit) return hit;
   const path = `/route/v1/${profile}/${from.lon},${from.lat};${to.lon},${to.lat}`;
   const url = new URL(path, OSRM);
-  url.searchParams.set("overview", "full");
+  url.searchParams.set("overview", "simplified");
   url.searchParams.set("geometries", "geojson");
   url.searchParams.set("steps", "false");
+  url.searchParams.set("alternatives", "false");
   const data = await getJson(url, signal);
   const route = data.routes?.[0];
   if (!route?.geometry || route.geometry.type !== "LineString") {
